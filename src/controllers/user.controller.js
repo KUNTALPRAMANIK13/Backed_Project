@@ -77,4 +77,93 @@ const registerUser = asynchandler(async (req, res) => {
     .json(new ApiResponse(200, created_user, "User registered successfully"));
 });
 
-export { registerUser };
+const generateAccessAndRefreshTokens = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
+
+    user.refreshToken = refreshToken;
+    await user.save({ validateBeforeSave: false });
+
+    return { accessToken, refreshToken };
+  } catch (error) {
+    throw new ApiError("500", "something went wrong while generating tokens");
+  }
+};
+const loginUSer = asynchandler(async (req, res) => {
+  // reqbody->data
+  // username or email
+  // find user
+  // password check
+  // access token and refresh token
+  // send cookies
+
+  const { email, username, password } = req.body;
+
+  if (!username && !email) {
+    throw new ApiError(400, "Email or username field is missing");
+  }
+
+  const user = await User.findOne({
+    $or: [{ username }, { email }],
+  });
+
+  if (!user) {
+    throw new ApiError(404, "user does not exist");
+  }
+  const validPassword = await user.isPasswordCorrect(password);
+
+  if (!validPassword) {
+    throw new ApiError(401, "invalid user credentials");
+  }
+  const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
+    user._id
+  );
+
+  const loggedInUser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
+
+  const option = {
+    httpOnly: true,
+    secure: true,
+    // sameSite: "Lax",
+  };
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, option)
+    .cookie("refreshToken", refreshToken, option)
+    .json(
+      new ApiResponse(
+        200,
+        {
+          userData: loggedInUser,
+          accessToken,
+          refreshToken,
+        },
+        "User Logged In Successfully"
+      )
+    );
+});
+
+const logoutUser = asynchandler(async (req, res) => {
+  await User.findByIdAndUpdate(req.user._id, {
+    $unset: {
+      refreshToken: 1,
+    },
+  });
+  console.log(req.user);
+  const option = {
+    httpOnly: true,
+    secure: true,
+    // sameSite: "Lax",
+  };
+  return res
+    .status(200)
+    .clearCookie("accessToken", option)
+    .clearCookie("refreshToken", option)
+    .json(new ApiResponse(200, {}, "User Logged Out Successfully"));
+});
+export { registerUser, loginUSer, logoutUser };
