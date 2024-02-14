@@ -1,7 +1,10 @@
 import { asynchandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "./../models/user.model.js";
-import { UploadOnCloudinary } from "../utils/Cloudinary.js";
+import {
+  UploadOnCloudinary,
+  deleteImageFromCloudinary,
+} from "../utils/Cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 const registerUser = asynchandler(async (req, res) => {
@@ -276,14 +279,23 @@ const updateUserAvatar = asynchandler(async (req, res) => {
   if (!avatar.url) {
     throw new ApiError(400, "Error while Uploading avatar file");
   }
-  const user = await User.findByIdAndUpdate(
+  const user = await User.findById(req.user?._id).select("avatar");
+
+  // Save the old avatar URL
+  const oldAvatarUrl = user.avatar;
+
+  const Newuser = await User.findByIdAndUpdate(
     req.user?._id,
     { $set: { avatar: avatar.url } },
     { new: true }
   ).select("-password");
+
+  if (oldAvatarUrl) {
+    await deleteImageFromCloudinary(oldAvatarUrl);
+  }
   return res
     .status(200)
-    .json(new ApiResponse(200, user, "Avatar Updated successfully"));
+    .json(new ApiResponse(200, Newuser, "Avatar Updated successfully"));
 });
 
 const updateUserCoverImage = asynchandler(async (req, res) => {
