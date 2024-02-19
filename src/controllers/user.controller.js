@@ -198,7 +198,7 @@ const RefreshAccessToken = asynchandler(async (req, res) => {
             incomingRefreshToken,
             process.env.Refresh_Token_Secret
         );
-        const user = await User.findOne(DecodeToken?._id);
+        const user = await User.findById(DecodeToken?._id);
 
         if (!user) {
             throw new ApiError(401, "Invalid Refresh Token");
@@ -387,6 +387,7 @@ const getUserChannelProfile = asynchandler(async (req, res) => {
     if (!channel.length) {
         throw new ApiError(404, "Channel not found");
     }
+    // console.log(channel);
 
     return res
         .status(200)
